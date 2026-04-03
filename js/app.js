@@ -1,7 +1,6 @@
-// Array de contactos
-let contactos = JSON.parse(localStorage.getItem('contactos')) || []
+const BASE_URL = 'https://69cf246da4647a9fc6751ff3.mockapi.io/contacts'
 
-// Referencias al DOM
+
 const formContacto = document.getElementById('form-contacto')
 const inputId = document.getElementById('contacto-id')
 const inputNombre = document.getElementById('nombre')
@@ -14,13 +13,18 @@ const formTitulo = document.getElementById('form-titulo')
 const btnCancelar = document.getElementById('btn-cancelar')
 const btnGuardar = document.getElementById('btn-guardar')
 
-// Guardar en localStorage
-function guardarEnStorage() {
-  localStorage.setItem('contactos', JSON.stringify(contactos))
+
+async function getContactos() {
+  try {
+    const response = await axios.get(BASE_URL)
+    renderTabla(response.data)
+  } catch (error) {
+    Swal.fire('Error', 'No se pudieron cargar los contactos', 'error')
+  }
 }
 
-// Renderizar tabla
-function renderTabla() {
+
+function renderTabla(contactos) {
   tablaContactos.innerHTML = ''
 
   if (contactos.length === 0) {
@@ -36,10 +40,10 @@ function renderTabla() {
     fila.innerHTML = `
       <td>
         <img src="${contacto.imagen || 'https://via.placeholder.com/40'}" 
-          alt="${contacto.nombre}" 
+          alt="${contacto.name}" 
           style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
       </td>
-      <td>${contacto.nombre}</td>
+      <td>${contacto.name}</td>
       <td>${contacto.email}</td>
       <td>${contacto.telefono}</td>
       <td>${contacto.fecha}</td>
@@ -52,7 +56,7 @@ function renderTabla() {
   })
 }
 
-// Validar campos
+
 function validarCampos() {
   if (!inputNombre.value.trim()) {
     Swal.fire('Error', 'El nombre es obligatorio', 'error')
@@ -62,8 +66,16 @@ function validarCampos() {
     Swal.fire('Error', 'El email es obligatorio', 'error')
     return false
   }
+  if (!/\S+@\S+\.\S+/.test(inputEmail.value)) {
+    Swal.fire('Error', 'El email no tiene un formato válido', 'error')
+    return false
+  }
   if (!inputTelefono.value.trim()) {
     Swal.fire('Error', 'El teléfono es obligatorio', 'error')
+    return false
+  }
+  if (!/^[0-9+\s\-()]{7,15}$/.test(inputTelefono.value)) {
+    Swal.fire('Error', 'El teléfono solo debe contener números', 'error')
     return false
   }
   if (!inputFecha.value) {
@@ -73,65 +85,63 @@ function validarCampos() {
   return true
 }
 
-// Submit del formulario
-formContacto.addEventListener('submit', function(e) {
+
+formContacto.addEventListener('submit', async function(e) {
   e.preventDefault()
 
   if (!validarCampos()) return
 
-  const id = inputId.value
-
-  if (id) {
-    const index = contactos.findIndex(function(c) { return c.id === id })
-    contactos[index] = {
-      id,
-      nombre: inputNombre.value.trim(),
-      email: inputEmail.value.trim(),
-      telefono: inputTelefono.value.trim(),
-      fecha: inputFecha.value,
-      imagen: inputImagen.value.trim()
-    }
-    Swal.fire('¡Actualizado!', 'El contacto fue actualizado correctamente', 'success')
-  } else {
-    const nuevoContacto = {
-      id: String(Date.now()),
-      nombre: inputNombre.value.trim(),
-      email: inputEmail.value.trim(),
-      telefono: inputTelefono.value.trim(),
-      fecha: inputFecha.value,
-      imagen: inputImagen.value.trim()
-    }
-    contactos.push(nuevoContacto)
-    Swal.fire('¡Guardado!', 'El contacto fue agregado correctamente', 'success')
+  const contacto = {
+    name: inputNombre.value.trim(),
+    email: inputEmail.value.trim(),
+    telefono: inputTelefono.value.trim(),
+    fecha: inputFecha.value,
+    imagen: inputImagen.value.trim()
   }
 
-  guardarEnStorage()
-  renderTabla()
-  limpiarFormulario()
+  const id = inputId.value
+
+  try {
+    if (id) {
+      await axios.put(`${BASE_URL}/${id}`, contacto)
+      Swal.fire('¡Actualizado!', 'El contacto fue actualizado correctamente', 'success')
+    } else {
+      await axios.post(BASE_URL, contacto)
+      Swal.fire('¡Guardado!', 'El contacto fue agregado correctamente', 'success')
+    }
+    limpiarFormulario()
+    getContactos()
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo guardar el contacto', 'error')
+  }
 })
 
-// Editar contacto
-function editarContacto(id) {
-  const contacto = contactos.find(function(c) { return c.id === id })
-  if (!contacto) return
 
-  inputId.value = contacto.id
-  inputNombre.value = contacto.nombre
-  inputEmail.value = contacto.email
-  inputTelefono.value = contacto.telefono
-  inputFecha.value = contacto.fecha
-  inputImagen.value = contacto.imagen
+async function editarContacto(id) {
+  try {
+    const response = await axios.get(`${BASE_URL}/${id}`)
+    const contacto = response.data
 
-  formTitulo.textContent = 'Editar Contacto'
-  btnGuardar.textContent = 'Actualizar contacto'
-  btnCancelar.style.display = 'inline-block'
+    inputId.value = contacto.id
+    inputNombre.value = contacto.name
+    inputEmail.value = contacto.email
+    inputTelefono.value = contacto.telefono
+    inputFecha.value = contacto.fecha
+    inputImagen.value = contacto.imagen || ''
 
-  window.scrollTo(0, 0)
+    formTitulo.textContent = 'Editar Contacto'
+    btnGuardar.textContent = 'Actualizar contacto'
+    btnCancelar.style.display = 'inline-block'
+
+    window.scrollTo(0, 0)
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo cargar el contacto', 'error')
+  }
 }
 
-// Eliminar contacto
-function eliminarContacto(id) {
-  Swal.fire({
+
+async function eliminarContacto(id) {
+  const result = await Swal.fire({
     title: '¿Estás segura?',
     text: 'Esta acción no se puede deshacer',
     icon: 'warning',
@@ -140,17 +150,20 @@ function eliminarContacto(id) {
     cancelButtonColor: '#3085d6',
     confirmButtonText: 'Sí, eliminar',
     cancelButtonText: 'Cancelar'
-  }).then(function(result) {
-    if (result.isConfirmed) {
-      contactos = contactos.filter(function(c) { return c.id !== id })
-      guardarEnStorage()
-      renderTabla()
-      Swal.fire('¡Eliminado!', 'El contacto fue eliminado', 'success')
-    }
   })
+
+  if (result.isConfirmed) {
+    try {
+      await axios.delete(`${BASE_URL}/${id}`)
+      Swal.fire('¡Eliminado!', 'El contacto fue eliminado', 'success')
+      getContactos()
+    } catch (error) {
+      Swal.fire('Error', 'No se pudo eliminar el contacto', 'error')
+    }
+  }
 }
 
-// Limpiar formulario
+
 function limpiarFormulario() {
   formContacto.reset()
   inputId.value = ''
@@ -159,8 +172,8 @@ function limpiarFormulario() {
   btnCancelar.style.display = 'none'
 }
 
-// Botón cancelar
+
 btnCancelar.addEventListener('click', limpiarFormulario)
 
-// Cargar contactos al inicio
-document.addEventListener('DOMContentLoaded', renderTabla)
+
+document.addEventListener('DOMContentLoaded', getContactos)
